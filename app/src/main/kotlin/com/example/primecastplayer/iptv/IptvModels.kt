@@ -17,5 +17,22 @@ data class IptvChannel(
 )
 
 interface IptvRepository {
-    fun channelsFor(category: IptvCategory): List<IptvChannel>
+    fun cachedPlaylistUrl(): String?
+    suspend fun loadPlaylist(
+        url: String,
+        forceRefresh: Boolean = false
+    ): PlaylistLoadResult
 }
+
+enum class PlaylistSource {
+    NETWORK,
+    CACHE,
+    SAMPLE
+}
+
+data class PlaylistLoadResult(
+    val channels: List<IptvChannel>,
+    val source: PlaylistSource,
+    val usedUrl: String,
+    val message: String? = null
+)

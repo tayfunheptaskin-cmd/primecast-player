@@ -18,15 +18,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -34,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,9 +59,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.example.primecastplayer.iptv.CachedIptvRepository
 import com.example.primecastplayer.iptv.IptvCategory
 import com.example.primecastplayer.iptv.IptvChannel
 import com.example.primecastplayer.iptv.IptvRepository
+import com.example.primecastplayer.iptv.PlaylistSource
 import com.example.primecastplayer.iptv.SamplePlaylistRepository
 import com.example.primecastplayer.ui.theme.PrimeCastTheme
 import kotlinx.coroutines.launch
@@ -76,16 +83,31 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PrimeCastPlayerApp(
-    repository: IptvRepository = SamplePlaylistRepository
-) {
+fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
     val context = LocalContext.current
+    val appContext = context.applicationContext
+    val resolvedRepository = remember(repository, appContext) {
+        repository ?: CachedIptvRepository(appContext)
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     var selectedCategory by rememberSaveable { mutableStateOf(IptvCategory.LIVE_TV) }
-    val channels = remember(selectedCategory, repository) { repository.channelsFor(selectedCategory) }
+    var allChannels by remember { mutableStateOf(SamplePlaylistRepository.channels) }
     var selectedChannelId by rememberSaveable(selectedCategory) { mutableStateOf<String?>(null) }
+    var playlistSource by remember { mutableStateOf(PlaylistSource.SAMPLE) }
+    var isLoading by remember { mutableStateOf(false) }
+    var showPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var playlistUrl by rememberSaveable {
+        mutableStateOf(
+            resolvedRepository.cachedPlaylistUrl() ?: CachedIptvRepository.DEFAULT_PLAYLIST_URL
+        )
+    }
+
+    val channels = remember(allChannels, selectedCategory) {
+        allChannels.filter { it.category == selectedCategory }
+    }
 
     LaunchedEffect(channels) {
         if (selectedChannelId == null || channels.none { it.id == selectedChannelId }) {
@@ -93,12 +115,45 @@ fun PrimeCastPlayerApp(
         }
     }
 
+    suspend fun loadPlaylist(forceRefresh: Boolean, overrideUrl: String? = null) {
+        isLoading = true
+        try {
+            val requestedUrl = (overrideUrl ?: playlistUrl).trim()
+            val result = resolvedRepository.loadPlaylist(requestedUrl, forceRefresh)
+            allChannels = result.channels
+            playlistSource = result.source
+
+            if (result.usedUrl.startsWith("http", ignoreCase = true)) {
+                playlistUrl = result.usedUrl
+            }
+
+            selectedCategory = resolveCategory(
+                currentCategory = selectedCategory,
+                channels = result.channels
+            )
+            result.message?.let { snackbarHostState.showSnackbar(it) }
+        } catch (error: Exception) {
+            snackbarHostState.showSnackbar("Playlist yuklenemedi: ${error.message}")
+        } finally {
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(resolvedRepository) {
+        loadPlaylist(forceRefresh = false)
+    }
+
     val selectedChannel = channels.firstOrNull { it.id == selectedChannelId }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PrimeCast IPTV") }
+                title = { Text("PrimeCast IPTV") },
+                actions = {
+                    TextButton(onClick = { showPlaylistDialog = true }) {
+                        Text("Playlist URL")
+                    }
+                }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -125,6 +180,11 @@ fun PrimeCastPlayerApp(
                             selectedCategory = selectedCategory,
                             onCategorySelected = { selectedCategory = it }
                         )
+                        PlaylistStatusCard(
+                            source = playlistSource,
+                            playlistUrl = playlistUrl,
+                            isLoading = isLoading
+                        )
                         ChannelList(
                             channels = channels,
                             selectedChannelId = selectedChannelId,
@@ -134,13 +194,13 @@ fun PrimeCastPlayerApp(
                         MenuButtons(
                             onActionClick = { action ->
                                 when (action) {
-                                    "Refresh" -> scope.launch {
-                                        snackbarHostState.showSnackbar("Playlist yenilendi.")
-                                    }
-
+                                    "Manage Playlists" -> showPlaylistDialog = true
+                                    "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
                                     "Exit" -> (context as? Activity)?.finish()
                                     else -> scope.launch {
-                                        snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
+                                        snackbarHostState.showSnackbar(
+                                            "$action ozelligi yakinda eklenecek."
+                                        )
                                     }
                                 }
                             }
@@ -167,6 +227,11 @@ fun PrimeCastPlayerApp(
                         selectedCategory = selectedCategory,
                         onCategorySelected = { selectedCategory = it }
                     )
+                    PlaylistStatusCard(
+                        source = playlistSource,
+                        playlistUrl = playlistUrl,
+                        isLoading = isLoading
+                    )
                     ChannelList(
                         channels = channels,
                         selectedChannelId = selectedChannelId,
@@ -177,13 +242,13 @@ fun PrimeCastPlayerApp(
                     MenuButtons(
                         onActionClick = { action ->
                             when (action) {
-                                "Refresh" -> scope.launch {
-                                    snackbarHostState.showSnackbar("Playlist yenilendi.")
-                                }
-
+                                "Manage Playlists" -> showPlaylistDialog = true
+                                "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
                                 "Exit" -> (context as? Activity)?.finish()
                                 else -> scope.launch {
-                                    snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
+                                    snackbarHostState.showSnackbar(
+                                        "$action ozelligi yakinda eklenecek."
+                                    )
                                 }
                             }
                         }
@@ -191,6 +256,29 @@ fun PrimeCastPlayerApp(
                 }
             }
         }
+    }
+
+    if (showPlaylistDialog) {
+        PlaylistUrlDialog(
+            initialUrl = playlistUrl,
+            onDismiss = { showPlaylistDialog = false },
+            onConfirm = { newUrl ->
+                showPlaylistDialog = false
+                if (newUrl.isBlank()) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Gecerli bir playlist URL girin.")
+                    }
+                } else {
+                    playlistUrl = newUrl
+                    scope.launch {
+                        loadPlaylist(
+                            forceRefresh = true,
+                            overrideUrl = newUrl
+                        )
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -207,6 +295,50 @@ private fun CategoryTabs(
                 onClick = { onCategorySelected(category) },
                 text = { Text(category.displayName) }
             )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistStatusCard(
+    source: PlaylistSource,
+    playlistUrl: String,
+    isLoading: Boolean
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Kaynak: ${source.asLabel()}",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    text = playlistUrl,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(18.dp),
+                    strokeWidth = 2.dp
+                )
+            }
         }
     }
 }
@@ -359,6 +491,44 @@ private fun StreamPreview(
 }
 
 @Composable
+private fun PlaylistUrlDialog(
+    initialUrl: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var draftUrl by rememberSaveable(initialUrl) {
+        mutableStateOf(
+            initialUrl.takeIf { it.startsWith("http", ignoreCase = true) }
+                ?: CachedIptvRepository.DEFAULT_PLAYLIST_URL
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Playlist URL") },
+        text = {
+            OutlinedTextField(
+                value = draftUrl,
+                onValueChange = { draftUrl = it },
+                singleLine = true,
+                label = { Text("M3U URL") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(draftUrl.trim()) }) {
+                Text("Yukle")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Iptal")
+            }
+        }
+    )
+}
+
+@Composable
 private fun MenuButtons(onActionClick: (String) -> Unit) {
     val actions = listOf("Account", "Manage Playlists", "Refresh", "Language", "Settings", "Exit")
     Column(
@@ -376,4 +546,22 @@ private fun MenuButtons(onActionClick: (String) -> Unit) {
             }
         }
     }
+}
+
+private fun PlaylistSource.asLabel(): String = when (this) {
+    PlaylistSource.NETWORK -> "Ag"
+    PlaylistSource.CACHE -> "Cache"
+    PlaylistSource.SAMPLE -> "Ornek"
+}
+
+private fun resolveCategory(
+    currentCategory: IptvCategory,
+    channels: List<IptvChannel>
+): IptvCategory {
+    if (channels.any { it.category == currentCategory }) {
+        return currentCategory
+    }
+    return IptvCategory.entries.firstOrNull { category ->
+        channels.any { it.category == category }
+    } ?: IptvCategory.LIVE_TV
 }

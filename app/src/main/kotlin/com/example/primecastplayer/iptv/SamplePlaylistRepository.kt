@@ -1,13 +1,11 @@
 package com.example.primecastplayer.iptv
 
-object SamplePlaylistRepository : IptvRepository {
-    private val channels: List<IptvChannel> by lazy {
+object SamplePlaylistRepository {
+    val channels: List<IptvChannel> by lazy {
         M3uParser.parse(samplePlaylist)
     }
 
-    override fun channelsFor(category: IptvCategory): List<IptvChannel> {
-        return channels.filter { it.category == category }
-    }
+    const val sourceLabel = "sample://built-in"
 
     // Public test streams for prototype/testing use.
     private val samplePlaylist = """
