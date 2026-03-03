@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,7 +64,6 @@ import com.example.primecastplayer.iptv.SamplePlaylistRepository
 import com.example.primecastplayer.ui.theme.PrimeCastTheme
 import kotlinx.coroutines.launch
 
-private val AppCanvas = Color(0xFFD8D9E2)
 private val AppPanel = Color(0xFF0D1330)
 private val CategoryOptions = listOf(IptvCategory.LIVE_TV, IptvCategory.MOVIES, IptvCategory.SERIES)
 
@@ -76,7 +74,7 @@ class MainActivity : ComponentActivity() {
             PrimeCastTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = AppCanvas
+                    color = AppPanel
                 ) {
                     PrimeCastPlayerApp()
                 }
@@ -146,68 +144,54 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
     val selectedChannel = channels.firstOrNull { it.id == selectedChannelId }
 
     Scaffold(
-        containerColor = AppCanvas,
+        containerColor = AppPanel,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .background(AppPanel)
+                .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 1100.dp),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = AppPanel)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    HeaderBar(onPlaylistClick = { showPlaylistDialog = true })
-                    Spacer(modifier = Modifier.height(8.dp))
+            HeaderBar(onPlaylistClick = { showPlaylistDialog = true })
+            Spacer(modifier = Modifier.height(8.dp))
 
-                    HeroCategoryRow(
-                        selectedCategory = selectedCategory,
-                        onCategorySelected = { selectedCategory = it }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+            HeroCategoryRow(
+                selectedCategory = selectedCategory,
+                onCategorySelected = { selectedCategory = it }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
 
-                    PlaylistStatusRow(
-                        source = playlistSource,
-                        playlistUrl = playlistUrl,
-                        isLoading = isLoading
-                    )
-                    Spacer(modifier = Modifier.height(7.dp))
+            PlaylistStatusRow(
+                source = playlistSource,
+                playlistUrl = playlistUrl,
+                isLoading = isLoading
+            )
+            Spacer(modifier = Modifier.height(7.dp))
 
-                    ChannelQuickRow(
-                        channels = channels,
-                        selectedChannelId = selectedChannelId,
-                        onChannelSelected = { selectedChannelId = it }
-                    )
-                    Spacer(modifier = Modifier.height(7.dp))
+            ChannelQuickRow(
+                channels = channels,
+                selectedChannelId = selectedChannelId,
+                onChannelSelected = { selectedChannelId = it }
+            )
+            Spacer(modifier = Modifier.height(7.dp))
 
-                    SelectedChannelInfo(selectedChannel = selectedChannel)
-                    Spacer(modifier = Modifier.height(9.dp))
+            SelectedChannelInfo(selectedChannel = selectedChannel)
+            Spacer(modifier = Modifier.height(9.dp))
 
-                    QuickActionsBar(
-                        onActionClick = { action ->
-                            when (action) {
-                                "Manage Playlists" -> showPlaylistDialog = true
-                                "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
-                                "Exit" -> showExitDialog = true
-                                else -> scope.launch {
-                                    snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
-                                }
-                            }
+            QuickActionsBar(
+                onActionClick = { action ->
+                    when (action) {
+                        "Manage Playlists" -> showPlaylistDialog = true
+                        "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
+                        "Exit" -> showExitDialog = true
+                        else -> scope.launch {
+                            snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
                         }
-                    )
+                    }
                 }
-            }
+            )
         }
     }
 
@@ -389,12 +373,13 @@ private fun PlaylistStatusRow(
                 color = Color(0xFFA7B8E7),
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 620.dp)
+                overflow = TextOverflow.Ellipsis
             )
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .padding(start = 8.dp),
                     strokeWidth = 2.dp
                 )
             }
