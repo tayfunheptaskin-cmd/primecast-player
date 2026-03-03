@@ -4,7 +4,6 @@ import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,14 +17,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -43,7 +40,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,18 +49,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 import com.example.primecastplayer.iptv.CachedIptvRepository
 import com.example.primecastplayer.iptv.IptvCategory
 import com.example.primecastplayer.iptv.IptvChannel
@@ -75,12 +66,8 @@ import com.example.primecastplayer.ui.theme.PrimeCastTheme
 import kotlinx.coroutines.launch
 
 private val AppCanvas = Color(0xFFD8D9E2)
-private val AppPanel = Color(0xFF0C1222)
-private val CategoryOptions = listOf(
-    IptvCategory.LIVE_TV,
-    IptvCategory.MOVIES,
-    IptvCategory.SERIES
-)
+private val AppPanel = Color(0xFF0D1330)
+private val CategoryOptions = listOf(IptvCategory.LIVE_TV, IptvCategory.MOVIES, IptvCategory.SERIES)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,7 +88,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val appContext = context.applicationContext
     val resolvedRepository = remember(repository, appContext) {
         repository ?: CachedIptvRepository(appContext)
@@ -140,11 +127,9 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
             val result = resolvedRepository.loadPlaylist(requestedUrl, forceRefresh)
             allChannels = result.channels
             playlistSource = result.source
-
             if (result.usedUrl.startsWith("http", ignoreCase = true)) {
                 playlistUrl = result.usedUrl
             }
-
             selectedCategory = resolveCategory(selectedCategory, result.channels)
             result.message?.let { snackbarHostState.showSnackbar(it) }
         } catch (error: Exception) {
@@ -168,70 +153,59 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(14.dp),
+                .padding(12.dp),
             contentAlignment = Alignment.Center
         ) {
             Card(
                 modifier = Modifier
                     .fillMaxSize()
-                    .widthIn(max = 900.dp),
-                shape = RoundedCornerShape(28.dp),
+                    .widthIn(max = 1100.dp),
+                shape = RoundedCornerShape(26.dp),
                 colors = CardDefaults.cardColors(containerColor = AppPanel)
             ) {
-                BoxWithConstraints(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(14.dp)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    val compactHeight = maxHeight < 560.dp
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        HeaderRow(onPlaylistClick = { showPlaylistDialog = true })
-                        Spacer(modifier = Modifier.height(10.dp))
+                    HeaderBar(onPlaylistClick = { showPlaylistDialog = true })
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                        HeroCategoryRow(
-                            selectedCategory = selectedCategory,
-                            onCategorySelected = { selectedCategory = it },
-                            compactMode = compactHeight
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
+                    HeroCategoryRow(
+                        selectedCategory = selectedCategory,
+                        onCategorySelected = { selectedCategory = it }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                        PlaylistStatusStrip(
-                            source = playlistSource,
-                            playlistUrl = playlistUrl,
-                            isLoading = isLoading
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    PlaylistStatusRow(
+                        source = playlistSource,
+                        playlistUrl = playlistUrl,
+                        isLoading = isLoading
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
 
-                        ChannelListPanel(
-                            channels = channels,
-                            selectedChannelId = selectedChannelId,
-                            onChannelSelected = { selectedChannelId = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                        )
+                    ChannelQuickRow(
+                        channels = channels,
+                        selectedChannelId = selectedChannelId,
+                        onChannelSelected = { selectedChannelId = it }
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                    SelectedChannelInfo(selectedChannel = selectedChannel)
+                    Spacer(modifier = Modifier.height(9.dp))
 
-                        SelectedChannelPanel(
-                            selectedChannel = selectedChannel,
-                            compactMode = compactHeight
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        QuickActionsBar(
-                            onActionClick = { action ->
-                                when (action) {
-                                    "Manage Playlists" -> showPlaylistDialog = true
-                                    "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
-                                    "Exit" -> showExitDialog = true
-                                    else -> scope.launch {
-                                        snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
-                                    }
+                    QuickActionsBar(
+                        onActionClick = { action ->
+                            when (action) {
+                                "Manage Playlists" -> showPlaylistDialog = true
+                                "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
+                                "Exit" -> showExitDialog = true
+                                else -> scope.launch {
+                                    snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
                                 }
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -247,9 +221,7 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                     scope.launch { snackbarHostState.showSnackbar("Gecerli bir playlist URL girin.") }
                 } else {
                     playlistUrl = newUrl
-                    scope.launch {
-                        loadPlaylist(forceRefresh = true, overrideUrl = newUrl)
-                    }
+                    scope.launch { loadPlaylist(forceRefresh = true, overrideUrl = newUrl) }
                 }
             }
         )
@@ -266,40 +238,55 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                         showExitDialog = false
                         (context as? Activity)?.finish()
                     }
-                ) {
-                    Text("Evet")
-                }
+                ) { Text("Evet") }
             },
             dismissButton = {
-                TextButton(onClick = { showExitDialog = false }) {
-                    Text("Hayir")
-                }
+                TextButton(onClick = { showExitDialog = false }) { Text("Hayir") }
             }
         )
     }
 }
 
 @Composable
-private fun HeaderRow(onPlaylistClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = "PrimeCast IPTV",
-                color = Color.White,
-                style = MaterialTheme.typography.headlineSmall
-            )
-            Text(
-                text = "Player",
-                color = Color(0xFFA4AED1),
-                style = MaterialTheme.typography.bodySmall
-            )
+private fun HeaderBar(onPlaylistClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "PrimeCast IPTV",
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Text(
+                    text = "Player",
+                    color = Color(0xFF9EAAD6),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            TextButton(onClick = onPlaylistClick) {
+                Text("Playlist URL", color = Color(0xFFA7C2FF))
+            }
         }
-        TextButton(onClick = onPlaylistClick) {
-            Text(text = "Playlist URL", color = Color(0xFF9DC2FF))
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .size(46.dp)
+                .background(
+                    brush = Brush.verticalGradient(listOf(Color(0xFF4EA2FF), Color(0xFF3370F4))),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "PLAY",
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall
+            )
         }
     }
 }
@@ -307,22 +294,26 @@ private fun HeaderRow(onPlaylistClick: () -> Unit) {
 @Composable
 private fun HeroCategoryRow(
     selectedCategory: IptvCategory,
-    onCategorySelected: (IptvCategory) -> Unit,
-    compactMode: Boolean = false
+    onCategorySelected: (IptvCategory) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        CategoryOptions.forEach { category ->
-            HeroCategoryCard(
-                category = category,
-                selected = selectedCategory == category,
-                onClick = { onCategorySelected(category) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(if (compactMode) 86.dp else 118.dp)
-            )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val gap = 10.dp
+        val cardWidth = (maxWidth - (gap * 2)) / 3
+        val cardHeight = if (maxHeight < 220.dp) 82.dp else 96.dp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            CategoryOptions.forEach { category ->
+                HeroCategoryCard(
+                    category = category,
+                    selected = selectedCategory == category,
+                    onClick = { onCategorySelected(category) },
+                    modifier = Modifier
+                        .width(cardWidth)
+                        .height(cardHeight)
+                )
+            }
         }
     }
 }
@@ -336,39 +327,35 @@ private fun HeroCategoryCard(
 ) {
     val gradient = when (category) {
         IptvCategory.LIVE_TV -> Brush.verticalGradient(
-            listOf(Color(0xFF618DFF), Color(0xFF4069D0))
+            listOf(Color(0xFF5D86F8), Color(0xFF456ED8))
         )
 
         IptvCategory.MOVIES -> Brush.verticalGradient(
-            listOf(Color(0xFF7F63D3), Color(0xFF5E43AD))
+            listOf(Color(0xFF7C63CE), Color(0xFF6046B1))
         )
 
         IptvCategory.SERIES -> Brush.verticalGradient(
-            listOf(Color(0xFF5F73BE), Color(0xFF465A9E))
+            listOf(Color(0xFF4FB9B5), Color(0xFF3B9B98))
         )
     }
 
-    val border = if (selected) BorderStroke(2.dp, Color(0xFFEAF0FF)) else null
     Card(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        border = border,
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(gradient)
-                .padding(10.dp),
+                .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = category.titleText(),
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
         }
@@ -376,40 +363,38 @@ private fun HeroCategoryCard(
 }
 
 @Composable
-private fun PlaylistStatusStrip(
+private fun PlaylistStatusRow(
     source: PlaylistSource,
     playlistUrl: String,
     isLoading: Boolean
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2340))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2344))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "Kaynak: ${source.asLabel()}",
-                color = Color(0xFFD5E0FF),
-                style = MaterialTheme.typography.labelLarge
+                color = Color(0xFFD7E4FF),
+                style = MaterialTheme.typography.bodySmall
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = playlistUrl,
-                color = Color(0xFFA5B4DE),
+                color = Color(0xFFA7B8E7),
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.widthIn(max = 620.dp)
             )
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .padding(start = 8.dp),
+                    modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp
                 )
             }
@@ -418,69 +403,56 @@ private fun PlaylistStatusStrip(
 }
 
 @Composable
-private fun ChannelListPanel(
+private fun ChannelQuickRow(
     channels: List<IptvChannel>,
     selectedChannelId: String?,
-    onChannelSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onChannelSelected: (String) -> Unit
 ) {
     Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF11182E))
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121A35))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 10.dp)
-        ) {
+        if (channels.isEmpty()) {
             Text(
-                text = "Channels",
-                color = Color(0xFFEAF0FF),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                text = "Bu kategoride kanal bulunamadi.",
+                color = Color(0xFFBBC7EC),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(10.dp)
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            if (channels.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "Bu kategoride kanal bulunamadi.",
-                        color = Color(0xFFACB6D9)
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 8.dp)
-                ) {
-                    items(channels, key = { it.id }) { channel ->
-                        val selected = selectedChannelId == channel.id
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp)
-                                .clickable { onChannelSelected(channel.id) },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (selected) {
-                                    Color(0xFF4A4E65)
-                                } else {
-                                    Color(0xFF2F3447)
-                                }
+        } else {
+            val scrollState = rememberScrollState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scrollState)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                channels.take(12).forEach { channel ->
+                    val selected = selectedChannelId == channel.id
+                    Card(
+                        modifier = Modifier
+                            .width(170.dp)
+                            .clickable { onChannelSelected(channel.id) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selected) Color(0xFF4D536E) else Color(0xFF303751)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = channel.name,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text(
-                                    text = channel.name,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = channel.groupTitle.ifEmpty { "Genel" },
-                                    color = Color(0xFFC0C8E4),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
+                            Text(
+                                text = channel.groupTitle.ifEmpty { "Genel" },
+                                color = Color(0xFFB8C6EF),
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -490,50 +462,84 @@ private fun ChannelListPanel(
 }
 
 @Composable
-private fun SelectedChannelPanel(
-    selectedChannel: IptvChannel?,
-    compactMode: Boolean = false
-) {
+private fun SelectedChannelInfo(selectedChannel: IptvChannel?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151C34))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF151C38))
     ) {
         if (selectedChannel == null) {
             Text(
-                text = "Detaylari gormek icin bir kanal secin.",
-                color = Color(0xFFC0C8E4),
-                modifier = Modifier.padding(12.dp)
+                text = "Detaylar icin kanal secin.",
+                color = Color(0xFFB8C6EF),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(10.dp)
             )
         } else {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(10.dp)) {
                 Text(
                     text = selectedChannel.name,
                     color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${selectedChannel.category.displayName} | ${selectedChannel.groupTitle.ifEmpty { "Genel" }}",
-                    color = Color(0xFFB4BFDE),
-                    style = MaterialTheme.typography.bodySmall
+                    color = Color(0xFFB8C6EF),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                if (compactMode) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = selectedChannel.streamUrl,
-                        color = Color(0xFF8F9AC5),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionsBar(onActionClick: (String) -> Unit) {
+    val actions = remember {
+        listOf(
+            QuickAction("Account", "Hesap", Color(0xFFC14A96)),
+            QuickAction("Manage Playlists", "Playlist", Color(0xFFC14A96)),
+            QuickAction("Refresh", "Refresh", Color(0xFFC14A96)),
+            QuickAction("Language", "Language", Color(0xFFC14A96)),
+            QuickAction("Settings", "Settings", Color(0xFFC14A96)),
+            QuickAction("Exit", "Exit", Color(0xFFB4000F))
+        )
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val gap = 8.dp
+        val ideal = (maxWidth - (gap * 5)) / 6
+        val compact = ideal < 88.dp
+
+        if (compact) {
+            val scrollState = rememberScrollState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scrollState),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                actions.forEach { item ->
+                    ActionButton(
+                        action = item,
+                        onClick = { onActionClick(item.id) },
+                        modifier = Modifier.width(106.dp)
                     )
-                } else {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    StreamPreview(
-                        streamUrl = selectedChannel.streamUrl,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 130.dp, max = 180.dp)
-                            .background(Color.Black)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                actions.forEach { item ->
+                    ActionButton(
+                        action = item,
+                        onClick = { onActionClick(item.id) },
+                        modifier = Modifier.width(ideal)
                     )
                 }
             }
@@ -542,86 +548,24 @@ private fun SelectedChannelPanel(
 }
 
 @Composable
-private fun StreamPreview(
-    streamUrl: String,
+private fun ActionButton(
+    action: QuickAction,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val exoPlayer = remember(streamUrl) {
-        runCatching {
-            ExoPlayer.Builder(context).build().apply {
-                setMediaItem(MediaItem.fromUri(streamUrl))
-                repeatMode = Player.REPEAT_MODE_OFF
-                playWhenReady = false
-                prepare()
-            }
-        }.getOrNull()
-    }
-
-    if (exoPlayer == null) {
-        Box(
-            modifier = modifier.background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Oynatici baslatilamadi",
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-        return
-    }
-
-    DisposableEffect(exoPlayer) {
-        onDispose { exoPlayer.release() }
-    }
-
-    AndroidView(
-        modifier = modifier,
-        factory = { playerContext ->
-            PlayerView(playerContext).apply {
-                useController = true
-                player = exoPlayer
-            }
-        },
-        update = { it.player = exoPlayer }
-    )
-}
-
-@Composable
-private fun QuickActionsBar(onActionClick: (String) -> Unit) {
-    val actions = remember {
-        listOf(
-            QuickAction("Account", "Account", Color(0xFF4F70DA)),
-            QuickAction("Manage Playlists", "Playlist", Color(0xFF8A4CC9)),
-            QuickAction("Refresh", "Refresh", Color(0xFF6A4ED9)),
-            QuickAction("Language", "Language", Color(0xFF8A4CC9)),
-            QuickAction("Settings", "Settings", Color(0xFF6A4ED9)),
-            QuickAction("Exit", "Exit", Color(0xFFC9303D))
-        )
-    }
-    val scrollState = rememberScrollState()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = action.color),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+        modifier = modifier.height(42.dp)
     ) {
-        actions.forEach { item ->
-            Button(
-                onClick = { onActionClick(item.id) },
-                colors = ButtonDefaults.buttonColors(containerColor = item.color),
-                modifier = Modifier.width(118.dp)
-            ) {
-                Text(
-                    text = item.label,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
+        Text(
+            text = action.label,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
@@ -651,14 +595,10 @@ private fun PlaylistUrlDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(draftUrl.trim()) }) {
-                Text("Yukle")
-            }
+            TextButton(onClick = { onConfirm(draftUrl.trim()) }) { Text("Yukle") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Iptal")
-            }
+            TextButton(onClick = onDismiss) { Text("Iptal") }
         }
     )
 }
