@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -177,53 +178,60 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = AppPanel)
             ) {
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(14.dp)
                 ) {
-                    HeaderRow(onPlaylistClick = { showPlaylistDialog = true })
-                    Spacer(modifier = Modifier.height(10.dp))
+                    val compactHeight = maxHeight < 560.dp
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        HeaderRow(onPlaylistClick = { showPlaylistDialog = true })
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    HeroCategoryRow(
-                        selectedCategory = selectedCategory,
-                        onCategorySelected = { selectedCategory = it }
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
+                        HeroCategoryRow(
+                            selectedCategory = selectedCategory,
+                            onCategorySelected = { selectedCategory = it },
+                            compactMode = compactHeight
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    PlaylistStatusStrip(
-                        source = playlistSource,
-                        playlistUrl = playlistUrl,
-                        isLoading = isLoading
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                        PlaylistStatusStrip(
+                            source = playlistSource,
+                            playlistUrl = playlistUrl,
+                            isLoading = isLoading
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    ChannelListPanel(
-                        channels = channels,
-                        selectedChannelId = selectedChannelId,
-                        onChannelSelected = { selectedChannelId = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
+                        ChannelListPanel(
+                            channels = channels,
+                            selectedChannelId = selectedChannelId,
+                            onChannelSelected = { selectedChannelId = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    SelectedChannelPanel(selectedChannel = selectedChannel)
-                    Spacer(modifier = Modifier.height(10.dp))
+                        SelectedChannelPanel(
+                            selectedChannel = selectedChannel,
+                            compactMode = compactHeight
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    QuickActionsBar(
-                        onActionClick = { action ->
-                            when (action) {
-                                "Manage Playlists" -> showPlaylistDialog = true
-                                "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
-                                "Exit" -> showExitDialog = true
-                                else -> scope.launch {
-                                    snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
+                        QuickActionsBar(
+                            onActionClick = { action ->
+                                when (action) {
+                                    "Manage Playlists" -> showPlaylistDialog = true
+                                    "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
+                                    "Exit" -> showExitDialog = true
+                                    else -> scope.launch {
+                                        snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -299,7 +307,8 @@ private fun HeaderRow(onPlaylistClick: () -> Unit) {
 @Composable
 private fun HeroCategoryRow(
     selectedCategory: IptvCategory,
-    onCategorySelected: (IptvCategory) -> Unit
+    onCategorySelected: (IptvCategory) -> Unit,
+    compactMode: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -312,7 +321,7 @@ private fun HeroCategoryRow(
                 onClick = { onCategorySelected(category) },
                 modifier = Modifier
                     .weight(1f)
-                    .height(118.dp)
+                    .height(if (compactMode) 86.dp else 118.dp)
             )
         }
     }
@@ -481,7 +490,10 @@ private fun ChannelListPanel(
 }
 
 @Composable
-private fun SelectedChannelPanel(selectedChannel: IptvChannel?) {
+private fun SelectedChannelPanel(
+    selectedChannel: IptvChannel?,
+    compactMode: Boolean = false
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF151C34))
@@ -505,14 +517,25 @@ private fun SelectedChannelPanel(selectedChannel: IptvChannel?) {
                     color = Color(0xFFB4BFDE),
                     style = MaterialTheme.typography.bodySmall
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                StreamPreview(
-                    streamUrl = selectedChannel.streamUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 130.dp, max = 180.dp)
-                        .background(Color.Black)
-                )
+                if (compactMode) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = selectedChannel.streamUrl,
+                        color = Color(0xFF8F9AC5),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    StreamPreview(
+                        streamUrl = selectedChannel.streamUrl,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 130.dp, max = 180.dp)
+                            .background(Color.Black)
+                    )
+                }
             }
         }
     }
@@ -525,12 +548,28 @@ private fun StreamPreview(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val exoPlayer = remember(streamUrl) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(streamUrl))
-            repeatMode = Player.REPEAT_MODE_OFF
-            playWhenReady = false
-            prepare()
+        runCatching {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(streamUrl))
+                repeatMode = Player.REPEAT_MODE_OFF
+                playWhenReady = false
+                prepare()
+            }
+        }.getOrNull()
+    }
+
+    if (exoPlayer == null) {
+        Box(
+            modifier = modifier.background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Oynatici baslatilamadi",
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
+        return
     }
 
     DisposableEffect(exoPlayer) {
