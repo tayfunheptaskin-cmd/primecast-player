@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -469,29 +468,28 @@ private fun SelectedChannelPanel(selectedChannel: IptvChannel?) {
                 color = Color(0xFFC0C8E4),
                 modifier = Modifier.padding(12.dp)
             )
-            return
-        }
-
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = selectedChannel.name,
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = "${selectedChannel.category.displayName} | ${selectedChannel.groupTitle.ifEmpty { "Genel" }}",
-                color = Color(0xFFB4BFDE),
-                style = MaterialTheme.typography.bodySmall
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            StreamPreview(
-                streamUrl = selectedChannel.streamUrl,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 130.dp, max = 180.dp)
-                    .background(Color.Black)
-            )
+        } else {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = selectedChannel.name,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "${selectedChannel.category.displayName} | ${selectedChannel.groupTitle.ifEmpty { "Genel" }}",
+                    color = Color(0xFFB4BFDE),
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                StreamPreview(
+                    streamUrl = selectedChannel.streamUrl,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 130.dp, max = 180.dp)
+                        .background(Color.Black)
+                )
+            }
         }
     }
 }
