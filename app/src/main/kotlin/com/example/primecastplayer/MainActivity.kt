@@ -115,6 +115,7 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
     var playlistSource by remember { mutableStateOf(PlaylistSource.SAMPLE) }
     var isLoading by remember { mutableStateOf(false) }
     var showPlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var showExitDialog by rememberSaveable { mutableStateOf(false) }
     var playlistUrl by rememberSaveable {
         mutableStateOf(
             resolvedRepository.cachedPlaylistUrl() ?: CachedIptvRepository.DEFAULT_PLAYLIST_URL
@@ -216,7 +217,7 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                             when (action) {
                                 "Manage Playlists" -> showPlaylistDialog = true
                                 "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
-                                "Exit" -> (context as? Activity)?.finish()
+                                "Exit" -> showExitDialog = true
                                 else -> scope.launch {
                                     snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
                                 }
@@ -241,6 +242,29 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                     scope.launch {
                         loadPlaylist(forceRefresh = true, overrideUrl = newUrl)
                     }
+                }
+            }
+        )
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Cikis") },
+            text = { Text("Uygulamadan cikmak istiyor musun?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExitDialog = false
+                        (context as? Activity)?.finish()
+                    }
+                ) {
+                    Text("Evet")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text("Hayir")
                 }
             }
         )
