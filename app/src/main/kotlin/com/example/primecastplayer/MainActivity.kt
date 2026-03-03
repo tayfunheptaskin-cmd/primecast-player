@@ -76,6 +76,11 @@ import kotlinx.coroutines.launch
 
 private val AppCanvas = Color(0xFFD8D9E2)
 private val AppPanel = Color(0xFF0C1222)
+private val CategoryOptions = listOf(
+    IptvCategory.LIVE_TV,
+    IptvCategory.MOVIES,
+    IptvCategory.SERIES
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -277,7 +282,7 @@ private fun HeroCategoryRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        IptvCategory.entries.forEach { category ->
+        CategoryOptions.forEach { category ->
             HeroCategoryCard(
                 category = category,
                 selected = selectedCategory == category,
@@ -622,7 +627,7 @@ private fun resolveCategory(
     if (channels.any { it.category == currentCategory }) {
         return currentCategory
     }
-    return IptvCategory.entries.firstOrNull { category ->
+    return CategoryOptions.firstOrNull { category ->
         channels.any { it.category == category }
     } ?: IptvCategory.LIVE_TV
 }
