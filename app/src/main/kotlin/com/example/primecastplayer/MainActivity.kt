@@ -17,9 +17,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,10 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.primecastplayer.iptv.CachedIptvRepository
 import com.example.primecastplayer.iptv.IptvCategory
-import com.example.primecastplayer.iptv.IptvChannel
 import com.example.primecastplayer.iptv.IptvRepository
-import com.example.primecastplayer.iptv.PlaylistSource
-import com.example.primecastplayer.iptv.SamplePlaylistRepository
 import com.example.primecastplayer.ui.theme.PrimeCastTheme
 import kotlinx.coroutines.launch
 
@@ -96,39 +93,23 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
     val scope = rememberCoroutineScope()
 
     var selectedCategory by rememberSaveable { mutableStateOf(IptvCategory.LIVE_TV) }
-    var allChannels by remember { mutableStateOf(SamplePlaylistRepository.channels) }
-    var selectedChannelId by rememberSaveable(selectedCategory) { mutableStateOf<String?>(null) }
-    var playlistSource by remember { mutableStateOf(PlaylistSource.SAMPLE) }
-    var isLoading by remember { mutableStateOf(false) }
     var showPlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showExitDialog by rememberSaveable { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     var playlistUrl by rememberSaveable {
         mutableStateOf(
             resolvedRepository.cachedPlaylistUrl() ?: CachedIptvRepository.DEFAULT_PLAYLIST_URL
         )
     }
 
-    val channels = remember(allChannels, selectedCategory) {
-        allChannels.filter { it.category == selectedCategory }
-    }
-
-    LaunchedEffect(channels) {
-        if (selectedChannelId == null || channels.none { it.id == selectedChannelId }) {
-            selectedChannelId = channels.firstOrNull()?.id
-        }
-    }
-
-    suspend fun loadPlaylist(forceRefresh: Boolean, overrideUrl: String? = null) {
+    suspend fun refreshPlaylist(forceRefresh: Boolean, overrideUrl: String? = null) {
         isLoading = true
         try {
             val requestedUrl = (overrideUrl ?: playlistUrl).trim()
             val result = resolvedRepository.loadPlaylist(requestedUrl, forceRefresh)
-            allChannels = result.channels
-            playlistSource = result.source
             if (result.usedUrl.startsWith("http", ignoreCase = true)) {
                 playlistUrl = result.usedUrl
             }
-            selectedCategory = resolveCategory(selectedCategory, result.channels)
             result.message?.let { snackbarHostState.showSnackbar(it) }
         } catch (error: Exception) {
             snackbarHostState.showSnackbar("Playlist yuklenemedi: ${error.message}")
@@ -138,10 +119,8 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
     }
 
     LaunchedEffect(resolvedRepository) {
-        loadPlaylist(forceRefresh = false)
+        refreshPlaylist(forceRefresh = false)
     }
-
-    val selectedChannel = channels.firstOrNull { it.id == selectedChannelId }
 
     Scaffold(
         containerColor = AppPanel,
@@ -154,37 +133,24 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                 .background(AppPanel)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
-            HeaderBar(onPlaylistClick = { showPlaylistDialog = true })
-            Spacer(modifier = Modifier.height(8.dp))
+            HeaderBar(
+                isLoading = isLoading,
+                onPlaylistClick = { showPlaylistDialog = true }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
             HeroCategoryRow(
                 selectedCategory = selectedCategory,
                 onCategorySelected = { selectedCategory = it }
             )
-            Spacer(modifier = Modifier.height(8.dp))
 
-            PlaylistStatusRow(
-                source = playlistSource,
-                playlistUrl = playlistUrl,
-                isLoading = isLoading
-            )
-            Spacer(modifier = Modifier.height(7.dp))
-
-            ChannelQuickRow(
-                channels = channels,
-                selectedChannelId = selectedChannelId,
-                onChannelSelected = { selectedChannelId = it }
-            )
-            Spacer(modifier = Modifier.height(7.dp))
-
-            SelectedChannelInfo(selectedChannel = selectedChannel)
-            Spacer(modifier = Modifier.height(9.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
             QuickActionsBar(
                 onActionClick = { action ->
                     when (action) {
                         "Manage Playlists" -> showPlaylistDialog = true
-                        "Refresh" -> scope.launch { loadPlaylist(forceRefresh = true) }
+                        "Refresh" -> scope.launch { refreshPlaylist(forceRefresh = true) }
                         "Exit" -> showExitDialog = true
                         else -> scope.launch {
                             snackbarHostState.showSnackbar("$action ozelligi yakinda eklenecek.")
@@ -205,7 +171,7 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
                     scope.launch { snackbarHostState.showSnackbar("Gecerli bir playlist URL girin.") }
                 } else {
                     playlistUrl = newUrl
-                    scope.launch { loadPlaylist(forceRefresh = true, overrideUrl = newUrl) }
+                    scope.launch { refreshPlaylist(forceRefresh = true, overrideUrl = newUrl) }
                 }
             }
         )
@@ -232,7 +198,10 @@ fun PrimeCastPlayerApp(repository: IptvRepository? = null) {
 }
 
 @Composable
-private fun HeaderBar(onPlaylistClick: () -> Unit) {
+private fun HeaderBar(
+    isLoading: Boolean,
+    onPlaylistClick: () -> Unit
+) {
     Box(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -266,11 +235,19 @@ private fun HeaderBar(onPlaylistClick: () -> Unit) {
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "PLAY",
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
+                )
+            } else {
+                Text(
+                    text = "PLAY",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }
@@ -342,141 +319,6 @@ private fun HeroCategoryCard(
                 fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
-        }
-    }
-}
-
-@Composable
-private fun PlaylistStatusRow(
-    source: PlaylistSource,
-    playlistUrl: String,
-    isLoading: Boolean
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A2344))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Kaynak: ${source.asLabel()}",
-                color = Color(0xFFD7E4FF),
-                style = MaterialTheme.typography.bodySmall
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = playlistUrl,
-                color = Color(0xFFA7B8E7),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .padding(start = 8.dp),
-                    strokeWidth = 2.dp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChannelQuickRow(
-    channels: List<IptvChannel>,
-    selectedChannelId: String?,
-    onChannelSelected: (String) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121A35))
-    ) {
-        if (channels.isEmpty()) {
-            Text(
-                text = "Bu kategoride kanal bulunamadi.",
-                color = Color(0xFFBBC7EC),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(10.dp)
-            )
-        } else {
-            val scrollState = rememberScrollState()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(scrollState)
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                channels.take(12).forEach { channel ->
-                    val selected = selectedChannelId == channel.id
-                    Card(
-                        modifier = Modifier
-                            .width(170.dp)
-                            .clickable { onChannelSelected(channel.id) },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (selected) Color(0xFF4D536E) else Color(0xFF303751)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(
-                                text = channel.name,
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = channel.groupTitle.ifEmpty { "Genel" },
-                                color = Color(0xFFB8C6EF),
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectedChannelInfo(selectedChannel: IptvChannel?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF151C38))
-    ) {
-        if (selectedChannel == null) {
-            Text(
-                text = "Detaylar icin kanal secin.",
-                color = Color(0xFFB8C6EF),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(10.dp)
-            )
-        } else {
-            Column(modifier = Modifier.padding(10.dp)) {
-                Text(
-                    text = selectedChannel.name,
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "${selectedChannel.category.displayName} | ${selectedChannel.groupTitle.ifEmpty { "Genel" }}",
-                    color = Color(0xFFB8C6EF),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
     }
 }
@@ -598,22 +440,4 @@ private fun IptvCategory.titleText(): String = when (this) {
     IptvCategory.LIVE_TV -> "LIVE TV"
     IptvCategory.MOVIES -> "MOVIES"
     IptvCategory.SERIES -> "SERIES"
-}
-
-private fun PlaylistSource.asLabel(): String = when (this) {
-    PlaylistSource.NETWORK -> "Ag"
-    PlaylistSource.CACHE -> "Cache"
-    PlaylistSource.SAMPLE -> "Ornek"
-}
-
-private fun resolveCategory(
-    currentCategory: IptvCategory,
-    channels: List<IptvChannel>
-): IptvCategory {
-    if (channels.any { it.category == currentCategory }) {
-        return currentCategory
-    }
-    return CategoryOptions.firstOrNull { category ->
-        channels.any { it.category == category }
-    } ?: IptvCategory.LIVE_TV
 }
